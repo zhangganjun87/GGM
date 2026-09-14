@@ -1,0 +1,299 @@
+function M = perform_lic(v, w, options)
+
+% perform_lic - perform line integral convolution
+%
+%   M = perform_lic(v, w, options);
+%
+%   v is a vector field (should be approximately of unit norm).
+%   w is the length of the convolution (in pixels)
+%   M is an image of filtered noise that illustrate well the flow of v.
+%
+%   options.spot_size set the size of the features.
+%
+%   Set options.flow_correction=1 in order to fix problem
+%   around singularity points of the flow.
+%
+%   The method is described in
+%       Imaging vector fields using line integral convolution
+%       Brian Cabral, Leith Casey Leedom
+%       Siggraph 1993
+%
+%   If the vector field is not oriented (e.g. if it is an eigenvector field
+%   of a tensor field) then set options.isoriented=1. It will perform two
+%   LIC (horizontal and vertical) and then average them. This trick is
+%   explained in 
+%       Interactive Tensor Field Design and Visualization on Surfaces 
+%       Eugene Zhang, James Hays, and Greg Turk 
+%       IEEE Transactions on Visualization and Computer Graphics
+%       Volume 13 ,  Issue 1, Pages: 94-107, 2007.   
+%   
+%   Copyright (c) Gabriel Peyre 2007
+
+n = size(v,1);
+
+options.null = 0;
+if isfield(options, 'M0')
+    M0 = options.M0;
+else
+    M0 = randn(n);
+    if isfield(options, 'spot_size')
+        sigma = options.spot_size;
+    else
+        sigma = 2;
+    end
+    M0 = perform_blurring(M0, sigma, options);
+end
+
+if size(M0,3)>1
+    % lic on each channel
+    for i=1:size(M0,3)
+        options.M0 = M0(:,:,i);
+        M(:,:,i) = perform_lic(v, w, options);
+    end
+    return;
+end
+
+isoriented = getoptions(options, 'isoriented', 1);
+if isoriented==0
+    % run twice the lic in each direction
+    options.isoriented = 1;
+    options.method = 'xproj';
+    v = perform_vf_reorientation(v, options);
+    M1 = perform_lic(v, w, options);
+    options.method = 'yproj';
+    v = perform_vf_reorientation(v, options);
+    M2 = perform_lic(v, w, options);
+    % weight
+    v = perform_vf_normalization(v);
+    T = v(:,:,1).^2;
+    M = T.*M1 + (1-T).*M2;
+    return;
+end
+
+if isfield(options, 'niter_lic') && options.niter_lic>1
+    M = options.M0;
+    niter_lic = options.niter_lic;
+    options.niter_lic = 1;
+    for i=1:niter_lic
+        options.M0 = M;
+        M = perform_lic(v, w, options);
+    end
+    return;
+end
+
+ histogram = getoptions(options, 'histogram', 'linear');
+flow_correction = getoptions(options, 'flow_correction', 1);
+
+if isstr(histogram)
+    switch histogram
+        case 'linear'
+            hist = linspace(0,1, 100^2);
+        case 'gaussian'
+            hist = randn(100); hist = hist(:);
+        otherwise
+            error('Unkown kind of histograms');
+    end
+else
+    hist = histogram;
+end
+% 
+if isfield(options, 'dt')
+    dt = options.dt;
+else
+    dt = 0.5;
+end
+
+% dt = 1;  %0.5
+dt = 0.5;
+% perform integration of the vector field: Forward
+T_list = 0:dt:w/2;
+H = perform_vf_integration(v, dt, T_list, options );
+
+% perform integration of the vector field: Backward
+T_list(1) = [];
+H1 = perform_vf_integration(-v, dt, T_list, options );
+H = cat(4, H1(:,:,:,end:-1:1), H );
+p = size(H,4);
+% try to remove sampling problems
+if flow_correction
+    A = H(:,:,:,(end+1)/2);
+    dX = H(:,:,1,:)-repmat(A(:,:,1,:), [1 1 1 p]);
+    dY = H(:,:,2,:)-repmat(A(:,:,2,:), [1 1 1 p]);
+    dX(dX>n/2) = dX(dX>n/2)-(n-1); dX(dX<-n/2) = dX(dX<-n/2)+(n-1);
+    dY(dY>n/2) = dY(dY>n/2)-(n-1); dY(dY<-n/2) = dY(dY<-n/2)+(n-1);
+    d = sqrt(dX.^2 + dY.^2);
+    d = repmat( mean(mean(d)), [n n 1] ) - d;
+    % threshold on the distance map deviation
+    eta = 0.5;
+end
+
+% compute averaging
+M = zeros(n);
+% [Y,X] = meshgrid(1:n,1:n);
+W = zeros(n);
+% [Gmag, Gdir]=imgradient(options.im);
+% [Gmag,ps] = mapminmax(Gmag,0,1);
+% [sx,sy]=size(options.im);
+% tGmag=zeros(n);
+% % tGmag(1:sx,1:sy)=Gmag;
+% te=ones(n);
+% % tGmag=te-tGmag;
+% ximg=de_filter(L0Smoothing(options.im,0.003,2));
+% tGmag(1:sx,1:sy)=ximg;
+% te=te-tGmag;
+% imshow(te);
+% for i=1:n
+%     for j=1:n
+%         if tGmag(i,j)<0.5
+%             %te(i,j)=M0(i,j);
+%             te(i,j)=1;
+%         else
+%             te(i,j)=0;
+%         end
+%     end
+% end
+% imshow(te);
+for i=1:p
+    A = interp2(1:n,1:n, M0, H(:,:,2,i), H(:,:,1,i));
+%     for o=1:n
+%         for p=1:n
+%             if te(o,p)==1 && A(o,p)<0.5
+%                 M1(o,p)=A(o,p);
+%                 B=interp2(1:n,1:n, M1, H(:,:,2,i), H(:,:,1,i));
+%                 imshow(B);
+%                 M1=zeros(n);
+%             end
+%         end
+%     end
+    if flow_correction
+        w = d(:,:,i)<eta;
+    else
+        w = ones(n);
+    end
+    M = M + A.*w;
+    W = W+w;
+end
+W(W==0) = 1;  
+M = M./W;
+% % 
+% if not(isempty(hist))
+%     M = perform_histogram_equalization(M, hist);
+% end
+
+
+function M = perform_vf_integration(vf, dt,T_list, options )
+
+% perform_vf_integration - perform a time integration of the vf
+%
+%   M = perform_vf_integration(vf, dt, T_list, options );
+%
+%   If you set options.posx or options.posy, then 
+%       M(i,j,:,t)) is the (X,Y) location of the point (options.posx(i),options.posy(j))
+%       at timestep T_list(t).
+%   If you set options.pos, then M(i,:,t) is the location of the point
+%       options.pos(:,i).
+%
+%   The vf is assumed to be sampled at locations [1,...,n]^2 unless posx and posy are given.
+%
+%   The integrator is a simple explicit euler, but it is very 
+%   fast thanks to vectorization.
+%
+%   Copyright (c) 2005 Gabriel Peyre
+
+n = size(vf,1);
+p = size(vf,2);
+m = length(T_list);
+
+options.null = 0;
+
+bound = getoptions(options, 'bound', 'sym');
+verb = getoptions(options, 'verb', 0);
+
+if isfield(options, 'pos')
+    pos = options.pos;
+    posx = [];
+else
+    posx = getoptions(options, 'posx', 1:n);
+    posy = getoptions(options, 'posy', 1:p);
+    [Y,X] = meshgrid(posy,posx);
+    pos = cat(1,X(:)',Y(:)');   %(:)'把X和Y转换成一个行向X量
+end
+% number of points
+q = size(pos,2);
+
+% M = zeros( length(posx),length(posy),m);
+M = zeros(q,2,m);
+
+T_list = [0; sort(T_list(:))];
+
+M_tmp = options.M0;
+pos_src = pos;
+
+for i=1:m
+    if verb
+        progressbar(i,m);
+    end
+    % compute the number of time steps
+    delta = T_list(i+1)-T_list(i);
+%     delta = 0.5;
+    nt = ceil(delta/dt);
+%     nt = 5;
+    if nt>0
+        DT = delta / nt;
+        % perform each time step
+        for k=1:nt
+            dx = interp2(1:p,1:n,vf(:,:,1), pos(2,:),pos(1,:) );   %size(1, q) 且值不变，dy也是
+            dy = interp2(1:p,1:n,vf(:,:,2), pos(2,:),pos(1,:) );
+            
+            %----------my test:对dx和dy进行调整，目的是把白点的线调短，黑点的线长不变--------
+%             tt = size(pos_src(1,:), 2);
+%             for ttm = 1 : tt
+%                 if M_tmp(pos_src(1, ttm), pos_src(2, ttm)) > 0.8
+%                    dx(ttm) =  dx(ttm) / 1.2;
+%                    dy(ttm) =  dy(ttm) / 1.2;
+%                 end
+%             end
+            %----------------------------------------------------------------------
+            pos = pos + DT*cat(1,dx,dy);
+            
+%            X = X + DT*dx; Y = Y + DT*dy;
+            switch bound
+                case 'sym'
+%                     pos(1,:) = clamp( pos(1,:), 1,n );
+%                     pos(2,:) = clamp( pos(2,:), 1,p );
+                    for ii = 1:q
+                        if pos(1,ii) < 1
+                            pos(1,ii) = 1;
+                        elseif pos(1,ii) > n
+                            pos(1,ii) = n;
+                        end
+                        if pos(2,ii) < 1
+                            pos(2,ii) = 2;
+                        elseif pos(2,ii) > p
+                            pos(2,ii) = p;
+                        end
+                    end
+                case 'per'
+                    pos(1,:) = mod(pos(1,:)-1,n-1)+1;
+                    pos(2,:) = mod(pos(2,:)-1,p-1)+1;
+                otherwise
+                    error('Unknown options.bound.');
+            end
+        end
+    end
+    % record value
+    M(:,:,i) = pos'; % X + 1i * Y;
+    % check for early break if nothing is moving anymore    
+    if i>1
+        d = M(:,:,i) -  M(:,:,i-1);
+        d = mean( sqrt(sum(d.^2,2)) );
+        if d<1e-6
+            progressbar(m,m);
+            break;
+        end
+    end
+end
+M = M(:,:,1:i);
+if not(isempty(posx))
+    M = reshape(M, [length(posx) length(posy) 2 m]);
+end
