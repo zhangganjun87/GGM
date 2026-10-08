@@ -7,9 +7,9 @@ function result=pencilsketch_1(filename)
 %copy right of pencilsketch @2013 Lei liu
 %M=imread(filename);
 %------------------遍历文件夹下每一张图片------------------
-imgPath='D:/MatlabTest/test_one_D/solo2/';  %图像库路径   input_RBWN_compare/     input_11   input_20   
-directory='D:/MatlabTest/test_one_I/copare_with_others50/';
-imgDir=dir([imgPath, '*.*p']);%遍历所有jpg格式文件
+imgPath='D:/MatlabTest/test_one_A/input_Figure_9/animal/';  %图像库路径   input_RBWN_compare/     input_11   input_20   
+directory='D:/MatlabTest/test_one_I/LyapunovCLT_4/';
+imgDir=dir([imgPath, '*.*g']);%遍历所有jpg格式文件
 directory_tmp=[cd,'\result\'];
 if ~exist(directory, 'dir')
     % 如果不存在，则新建此文件夹
@@ -223,10 +223,10 @@ for i = 1:length(imgDir)
 
 %             tone_re = tone_seg_f_bkp(tone, work_strok, imgDir(i).name, directory);
 %           tone_re = tone_kmeans_f_mine(tone, work_strok, imgDir(i).name, directory);
-            tone_re = tone_kmeans_f_mine_two(tone, work_strok, imgDir(i).name, directory);
+%             tone_re = tone_kmeans_f_mine_two(tone, work_strok, imgDir(i).name, directory);
 %           tone_re = tone_seg_f_compare(tone, work_strok, imgDir(i).name, directory);
 %            tone_re = tone_seg_f_pencil_grading(tone, work_strok, imgDir(i).name, directory);
-%            tone_re = tone_seg_f_noSeg(tone, work_strok, imgDir(i).name, directory);
+           tone_re = tone_seg_f_noSeg(tone, work_strok, imgDir(i).name, directory);
           
 
 % tone_re = tone_kmeans_f_mine(tone, work_strok, imgDir(i).name);

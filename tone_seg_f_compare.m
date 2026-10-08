@@ -28,14 +28,14 @@ mode = '';
 
 
 %% 概率白噪声 RBWN
-% mode = 'RBWN';
-% k =1;
-% m0=double(rand(sx,sy) > k*(1-m0));%（概率白噪声）
-% % %------------------test1:RBWN k=1时的同等乘性噪声----------------
-% 
-% x2 = sqrt(m0_replace .*(1-m0_replace));
-% m1=normrnd(m0_replace, x2, sx, sy);
-% m0_replace=m1;
+mode = 'RBWN';
+k =1;
+m0=double(rand(sx,sy) > k*(1-m0));%（概率白噪声）
+% %------------------test1:RBWN k=1时的同等乘性噪声----------------
+
+x2 = sqrt(m0_replace .*(1-m0_replace));
+m1=normrnd(m0_replace, x2, sx, sy);
+m0_replace=m1;
 
 % % x2 = sqrt(m0 .*(1-m0));
 % % m1=normrnd(m0, x2, sx, sy);
@@ -67,19 +67,19 @@ mode = '';
 
 
 %% 乘性噪声
-mode = 'multi';
-mean1 = 0; 
-sig1 = 1.4;
-options.mean = mean1;
-options.sig = sig1;
-m1=m0+normrnd(mean1, sig1, sx, sy).*(1-m0);%乘性噪声（加性形式表示）
-m0=m1;
+% mode = 'multi';
+% mean1 = 0; 
+% sig1 = 1.4;
+% options.mean = mean1;
+% options.sig = sig1;
+% m1=m0+normrnd(mean1, sig1, sx, sy).*(1-m0);%乘性噪声（加性形式表示）
+% m0=m1;
 
 %% 乘性噪声替换公式
 
-miu_ = m0_replace + mean1 * (1-m0_replace);
-sigma_ = sqrt(sig1^2 * (1-m0_replace).^2);
-m0_replace = normrnd(miu_, sigma_, sx, sy);
+% miu_ = m0_replace + mean1 * (1-m0_replace);
+% sigma_ = sqrt(sig1^2 * (1-m0_replace).^2);
+% m0_replace = normrnd(miu_, sigma_, sx, sy);
 
 %------------------test2:RBWN+SRC----------------
 % miu_ = (2*m0 - m0.^2);  %.*(1-m0)
